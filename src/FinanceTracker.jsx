@@ -547,6 +547,7 @@ function EmptyRow({ text }) {
 
 function Clients({ data, setData }) {
   const [form, setForm] = useState(null);
+  const [filter, setFilter] = useState("all"); // all | prospect | active
 
   const addOrUpdate = (client) => {
     setData((d) => {
@@ -565,6 +566,14 @@ function Clients({ data, setData }) {
     }));
   };
 
+  const visibleClients = data.clients.filter((c) => {
+    const status = c.status || "active";
+    return filter === "all" || status === filter;
+  });
+
+  const prospectCount = data.clients.filter((c) => (c.status || "active") === "prospect").length;
+  const activeCount = data.clients.filter((c) => (c.status || "active") === "active").length;
+
   return (
     <div>
       <SectionHeader
@@ -573,19 +582,29 @@ function Clients({ data, setData }) {
         action={<button className="fin-btn" style={styles.primaryBtn} onClick={() => setForm({})}><Plus size={14} /> Add client</button>}
       />
 
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        <FilterPill label={`All (${data.clients.length})`} active={filter === "all"} onClick={() => setFilter("all")} />
+        <FilterPill label={`Prospects (${prospectCount})`} active={filter === "prospect"} onClick={() => setFilter("prospect")} />
+        <FilterPill label={`Active (${activeCount})`} active={filter === "active"} onClick={() => setFilter("active")} />
+      </div>
+
       {form && <ClientForm initial={form} onSave={addOrUpdate} onCancel={() => setForm(null)} />}
 
-      {data.clients.length === 0 && !form && <div style={styles.card}><EmptyRow text="No clients yet. Add your first one above." /></div>}
+      {visibleClients.length === 0 && !form && <div style={styles.card}><EmptyRow text="Nothing here yet." /></div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14, marginTop: 14 }}>
-        {data.clients.map((c) => {
+        {visibleClients.map((c) => {
           const overdue = c.followUpDate && c.followUpDate < todayISO();
           const linkedIncome = data.income.filter((i) => i.clientId === c.id);
+          const status = c.status || "active";
           return (
             <div key={c.id} style={styles.card}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600 }}>{c.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600 }}>{c.name}</div>
+                    <StatusPill status={status} />
+                  </div>
                   <div style={{ fontFamily: "var(--font-mono)", fontSize: 12.5, color: "var(--pine)", marginTop: 2 }}>
                     {fmtGBP(c.compensationAmount)} · {FREQ_LABEL[c.frequency] || "One-off"}
                   </div>
@@ -618,6 +637,35 @@ function Clients({ data, setData }) {
   );
 }
 
+function FilterPill({ label, active, onClick }) {
+  return (
+    <button
+      className="fin-btn"
+      onClick={onClick}
+      style={{
+        fontSize: 12.5, fontFamily: "var(--font-body)", padding: "6px 12px", borderRadius: 20,
+        border: "1px solid var(--line)", background: active ? "var(--pine)" : "var(--paper-raised)",
+        color: active ? "#fff" : "var(--ink-soft)",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function StatusPill({ status }) {
+  const isProspect = status === "prospect";
+  return (
+    <span style={{
+      fontSize: 10.5, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 20,
+      background: isProspect ? "var(--gold-soft)" : "#DCEBDD",
+      color: isProspect ? "#7A5A28" : "var(--pine-deep)",
+    }}>
+      {isProspect ? "Prospect" : "Active"}
+    </span>
+  );
+}
+
 function ClientForm({ initial, onSave, onCancel }) {
   const [name, setName] = useState(initial.name || "");
   const [amount, setAmount] = useState(initial.compensationAmount ?? "");
@@ -625,6 +673,7 @@ function ClientForm({ initial, onSave, onCancel }) {
   const [notes, setNotes] = useState(initial.notes || "");
   const [followUpDate, setFollowUpDate] = useState(initial.followUpDate || "");
   const [followUpNote, setFollowUpNote] = useState(initial.followUpNote || "");
+  const [status, setStatus] = useState(initial.status || "prospect");
 
   const save = () => {
     if (!name.trim()) return;
@@ -636,6 +685,7 @@ function ClientForm({ initial, onSave, onCancel }) {
       notes: notes.trim(),
       followUpDate,
       followUpNote: followUpNote.trim(),
+      status,
     });
   };
 
@@ -643,6 +693,12 @@ function ClientForm({ initial, onSave, onCancel }) {
     <div style={{ ...styles.card, marginBottom: 14, background: "var(--paper-raised)" }}>
       <div style={styles.formGrid}>
         <Field label="Client name"><input style={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Refresh Health Club" /></Field>
+        <Field label="Status">
+          <select style={styles.input} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="prospect">Prospect</option>
+            <option value="active">Active</option>
+          </select>
+        </Field>
         <Field label="Compensation (£)"><input type="number" style={styles.input} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" /></Field>
         <Field label="Frequency">
           <select style={styles.input} value={frequency} onChange={(e) => setFrequency(e.target.value)}>
